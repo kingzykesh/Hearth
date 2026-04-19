@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ShieldCheck, ActivitySquare, BrainCircuit } from "lucide-react";
+import {
+  Loader2,
+  ShieldCheck,
+  ActivitySquare,
+  BrainCircuit,
+  AudioLines,
+} from "lucide-react";
 import { toast } from "sonner";
 import api from "@/app/lib/api";
 import StatCard from "../components/dashboard/stat-card";
@@ -16,6 +22,8 @@ type DashboardSummary = {
   last_status: string | null;
   last_model_used: string | null;
   email_verified: boolean;
+  last_rule_score?: number | null;
+  last_feature_payload?: Record<string, string | number | null> | null;
 };
 
 export default function DashboardOverviewPage() {
@@ -78,6 +86,29 @@ export default function DashboardOverviewPage() {
     return "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400";
   };
 
+  const pickKeyFeatures = (
+    featurePayload?: Record<string, string | number | null> | null
+  ) => {
+    if (!featurePayload) return [];
+
+    const keys = [
+      "duration_seconds",
+      "mfcc_std",
+      "spectral_bandwidth_std",
+      "rms_std",
+      "zcr_mean",
+    ];
+
+    return keys
+      .filter((key) => key in featurePayload)
+      .map((key) => ({
+        key,
+        value: featurePayload[key],
+      }));
+  };
+
+  const features = pickKeyFeatures(summary?.last_feature_payload);
+
   if (loading) {
     return (
       <section className="flex min-h-[50vh] items-center justify-center">
@@ -91,7 +122,7 @@ export default function DashboardOverviewPage() {
 
   return (
     <section className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Total Screenings"
           value={String(summary?.total_screenings ?? 0)}
@@ -104,12 +135,17 @@ export default function DashboardOverviewPage() {
         />
         <StatCard
           label="Latest Confidence"
+          value={summary?.last_confidence ? `${summary.last_confidence}%` : "—"}
+          hint="Confidence score from the latest screening."
+        />
+        <StatCard
+          label="Latest Rule Score"
           value={
-            summary?.last_confidence
-              ? `${summary.last_confidence}%`
+            typeof summary?.last_rule_score === "number"
+              ? String(summary.last_rule_score)
               : "—"
           }
-          hint="Confidence score from the latest screening."
+          hint="Explainable rule-based screening score."
         />
         <StatCard
           label="Last Screening Date"
@@ -119,38 +155,72 @@ export default function DashboardOverviewPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
-        <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <BrainCircuit className="text-[var(--primary)]" size={22} />
-            <h2 className="text-xl font-semibold">Latest Screening Summary</h2>
+        <div className="space-y-6">
+          <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <BrainCircuit className="text-[var(--primary)]" size={22} />
+              <h2 className="text-xl font-semibold">Latest Screening Summary</h2>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-medium ${getRiskBadgeClasses(
+                  summary?.last_result
+                )}`}
+              >
+                Risk: {summary?.last_result || "Not available"}
+              </span>
+
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-medium ${getStatusBadgeClasses(
+                  summary?.last_status
+                )}`}
+              >
+                Status: {summary?.last_status || "No status"}
+              </span>
+
+              <span className="rounded-full border border-[var(--border)] bg-[var(--muted)] px-3 py-1 text-xs font-medium">
+                Model: {summary?.last_model_used || "—"}
+              </span>
+            </div>
+
+            <p className="mt-5 text-sm leading-7 opacity-80">
+              {summary?.last_summary ||
+                "Your most recent screening summary will appear here after a voice sample has been processed."}
+            </p>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-medium ${getRiskBadgeClasses(
-                summary?.last_result
-              )}`}
-            >
-              Risk: {summary?.last_result || "Not available"}
-            </span>
+          <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <AudioLines className="text-[var(--primary)]" size={22} />
+              <h2 className="text-lg font-semibold">Key Feature Insights</h2>
+            </div>
 
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-medium ${getStatusBadgeClasses(
-                summary?.last_status
-              )}`}
-            >
-              Status: {summary?.last_status || "No status"}
-            </span>
-
-            <span className="rounded-full border border-[var(--border)] bg-[var(--muted)] px-3 py-1 text-xs font-medium">
-              Model: {summary?.last_model_used || "—"}
-            </span>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {features.length > 0 ? (
+                features.map((feature) => (
+                  <div
+                    key={feature.key}
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--muted)] px-4 py-3"
+                  >
+                    <p className="text-xs uppercase tracking-wide opacity-60">
+                      {feature.key}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold">
+                      {typeof feature.value === "number"
+                        ? feature.value.toFixed(2)
+                        : feature.value ?? "—"}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 opacity-75">
+                  Extracted feature insights will appear here after your first
+                  completed screening.
+                </p>
+              )}
+            </div>
           </div>
-
-          <p className="mt-5 text-sm leading-7 opacity-80">
-            {summary?.last_summary ||
-              "Your most recent screening summary will appear here after a voice sample has been processed."}
-          </p>
         </div>
 
         <div className="space-y-6">
@@ -197,6 +267,10 @@ export default function DashboardOverviewPage() {
               {summary?.last_result
                 ? `Your latest screening returned a ${summary.last_result} profile with a confidence score of ${
                     summary.last_confidence ? `${summary.last_confidence}%` : "—"
+                  } and a rule score of ${
+                    typeof summary?.last_rule_score === "number"
+                      ? summary.last_rule_score
+                      : "—"
                   }.`
                 : "Record and upload your first voice sample to begin seeing live screening insights here."}
             </p>

@@ -64,10 +64,13 @@ class VoiceSampleController extends Controller
             $prediction->update([
                 'risk_level' => $mlResult['risk_level'] ?? null,
                 'confidence_score' => $mlResult['confidence_score'] ?? null,
+                'rule_score' => $mlResult['rule_score'] ?? null,
                 'summary' => $mlResult['summary'] ?? null,
-                'model_used' => $mlResult['model_used'] ?? 'baseline-rule-ml',
+                'model_used' => $mlResult['model_used'] ?? 'rule-based-signal-processor-v1',
+                'feature_payload' => $mlResult['features'] ?? null,
                 'processing_status' => 'completed',
                 'processed_at' => now(),
+                'error_message' => null,
             ]);
         } catch (\Throwable $e) {
             $voiceSample->update([
