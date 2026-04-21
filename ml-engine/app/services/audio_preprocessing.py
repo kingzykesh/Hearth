@@ -1,28 +1,54 @@
-import io
+import os
+import tempfile
 import numpy as np
 import librosa
+from pydub import AudioSegment
+import imageio_ffmpeg
 
 
-def load_and_preprocess_audio(file_bytes: bytes, target_sr: int = 16000):
-    """
-    Load audio from uploaded bytes, convert to mono, resample to target_sr,
-    and trim silence.
-    """
-    audio_stream = io.BytesIO(file_bytes)
+FFMPEG_EXE = imageio_ffmpeg.get_ffmpeg_exe()
 
-    y, sr = librosa.load(audio_stream, sr=target_sr, mono=True)
+# Explicitly point pydub to ffmpeg/ffprobe
+AudioSegment.converter = FFMPEG_EXE
 
-    if y.size == 0:
-        raise ValueError("Audio data is empty after loading.")
+# Try to derive ffprobe path from ffmpeg install
+ffprobe_candidate = FFMPEG_EXE.replace("ffmpeg.exe", "ffprobe.exe")
+if os.path.exists(ffprobe_candidate):
+    AudioSegment.ffprobe = ffprobe_candidate
 
-    y_trimmed, _ = librosa.effects.trim(y, top_db=20)
 
-    if y_trimmed.size == 0:
-        y_trimmed = y
+def load_and_preprocess_audio(file_bytes: bytes, original_filename: str, target_sr: int = 16000):
+    suffix = os.path.splitext(original_filename)[1].lower() or ".webm"
 
-    # Basic amplitude normalization
-    max_val = np.max(np.abs(y_trimmed))
-    if max_val > 0:
-        y_trimmed = y_trimmed / max_val
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as input_file:
+        input_file.write(file_bytes)
+        input_path = input_file.name
 
-    return y_trimmed, target_sr
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as output_file:
+        output_path = output_file.name
+
+    try:
+        audio = AudioSegment.from_file(input_path)
+        audio.export(output_path, format="wav")
+
+        y, sr = librosa.load(output_path, sr=target_sr, mono=True)
+
+        if y.size == 0:
+            raise ValueError("Audio data is empty after loading.")
+
+        y_trimmed, _ = librosa.effects.trim(y, top_db=20)
+
+        if y_trimmed.size == 0:
+            y_trimmed = y
+
+        max_val = np.max(np.abs(y_trimmed))
+        if max_val > 0:
+            y_trimmed = y_trimmed / max_val
+
+        return y_trimmed, target_sr
+
+    finally:
+        if os.path.exists(input_path):
+            os.remove(input_path)
+        if os.path.exists(output_path):
+            os.remove(output_path)

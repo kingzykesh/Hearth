@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Feature;
 use App\Models\Prediction;
+use App\Models\RuleScore;
 use App\Models\VoiceSample;
 use App\Services\MlPredictionService;
 use Illuminate\Http\JsonResponse;
@@ -72,6 +74,53 @@ class VoiceSampleController extends Controller
                 'processed_at' => now(),
                 'error_message' => null,
             ]);
+
+            if (!empty($mlResult['features']) && is_array($mlResult['features'])) {
+                Feature::updateOrCreate(
+                    [
+                        'voice_sample_id' => $voiceSample->id,
+                    ],
+                    [
+                        'user_id' => $request->user()->id,
+                        'prediction_id' => $prediction->id,
+                        'duration_seconds' => $mlResult['features']['duration_seconds'] ?? null,
+                        'mfcc_mean' => $mlResult['features']['mfcc_mean'] ?? null,
+                        'mfcc_std' => $mlResult['features']['mfcc_std'] ?? null,
+                        'mfcc_delta_mean' => $mlResult['features']['mfcc_delta_mean'] ?? null,
+                        'mfcc_delta_std' => $mlResult['features']['mfcc_delta_std'] ?? null,
+                        'mfcc_delta2_mean' => $mlResult['features']['mfcc_delta2_mean'] ?? null,
+                        'mfcc_delta2_std' => $mlResult['features']['mfcc_delta2_std'] ?? null,
+                        'spectral_centroid_mean' => $mlResult['features']['spectral_centroid_mean'] ?? null,
+                        'spectral_centroid_std' => $mlResult['features']['spectral_centroid_std'] ?? null,
+                        'spectral_rolloff_mean' => $mlResult['features']['spectral_rolloff_mean'] ?? null,
+                        'spectral_rolloff_std' => $mlResult['features']['spectral_rolloff_std'] ?? null,
+                        'spectral_bandwidth_mean' => $mlResult['features']['spectral_bandwidth_mean'] ?? null,
+                        'spectral_bandwidth_std' => $mlResult['features']['spectral_bandwidth_std'] ?? null,
+                        'rms_mean' => $mlResult['features']['rms_mean'] ?? null,
+                        'rms_std' => $mlResult['features']['rms_std'] ?? null,
+                        'zcr_mean' => $mlResult['features']['zcr_mean'] ?? null,
+                        'zcr_std' => $mlResult['features']['zcr_std'] ?? null,
+                    ]
+                );
+            }
+
+            RuleScore::updateOrCreate(
+                [
+                    'voice_sample_id' => $voiceSample->id,
+                ],
+                [
+                    'user_id' => $request->user()->id,
+                    'prediction_id' => $prediction->id,
+                    'total_score' => $mlResult['rule_score'] ?? 0,
+                    'energy_instability_score' => $mlResult['rule_breakdown']['energy_instability_score'] ?? null,
+                    'mfcc_variability_score' => $mlResult['rule_breakdown']['mfcc_variability_score'] ?? null,
+                    'spectral_fluctuation_score' => $mlResult['rule_breakdown']['spectral_fluctuation_score'] ?? null,
+                    'zcr_activity_score' => $mlResult['rule_breakdown']['zcr_activity_score'] ?? null,
+                    'notes' => !empty($mlResult['notes']) && is_array($mlResult['notes'])
+                        ? implode(' ', $mlResult['notes'])
+                        : null,
+                ]
+            );
         } catch (\Throwable $e) {
             $voiceSample->update([
                 'processing_status' => 'failed',
@@ -86,14 +135,14 @@ class VoiceSampleController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Voice sample uploaded successfully.',
-            'data' => $voiceSample->load('prediction'),
+            'data' => $voiceSample->load(['prediction', 'feature', 'ruleScore']),
         ], 201);
     }
 
     public function index(Request $request): JsonResponse
     {
         $samples = VoiceSample::where('user_id', $request->user()->id)
-            ->with('prediction')
+            ->with(['prediction', 'feature', 'ruleScore'])
             ->latest()
             ->get();
 

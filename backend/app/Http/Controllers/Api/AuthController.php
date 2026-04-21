@@ -28,11 +28,12 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => $validated['password'],
+            'password' => Hash::make($validated['password']),
             'gender' => $validated['gender'] ?? null,
             'age' => $validated['age'] ?? null,
             'consent' => true,
             'terms_accepted' => true,
+            'is_active' => true,
         ]);
 
         $user->assignRole('user');
@@ -42,46 +43,58 @@ class AuthController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Registration successful. Please verify your email address.',
-            'user' => $user,
+            'user' => $user->load('roles'),
         ], 201);
     }
 
     public function login(Request $request): JsonResponse
-{
-    $validated = $request->validate([
-        'email' => ['required', 'email'],
-        'password' => ['required', 'string'],
-    ]);
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
+        ]);
 
-    if (!Auth::attempt($validated)) {
+        if (!Auth::attempt($validated)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid login credentials.',
+            ], 422);
+        }
+
+        $request->session()->regenerate();
+
+        $user = $request->user();
+
+        if (!$user?->is_active) {
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your account has been deactivated. Please contact support.',
+            ], 403);
+        }
+
+        if (!$user || !$user->hasVerifiedEmail()) {
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Please verify your email address before signing in.',
+            ], 403);
+        }
+
         return response()->json([
-            'status' => 'error',
-            'message' => 'Invalid login credentials.',
-        ], 422);
+            'status' => 'success',
+            'message' => 'Login successful.',
+            'user' => $user->load('roles'),
+        ]);
     }
-
-    $request->session()->regenerate();
-
-    $user = $request->user();
-
-    if (!$user || !$user->hasVerifiedEmail()) {
-        Auth::guard('web')->logout();
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Please verify your email address before signing in.',
-        ], 403);
-    }
-
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Login successful.',
-        'user' => $user->load('roles'),
-    ]);
-}
 
     public function logout(Request $request): JsonResponse
     {

@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw, FileAudio, AudioLines } from "lucide-react";
+import {
+  Loader2,
+  RefreshCw,
+  FileAudio,
+  AudioLines,
+  ChevronDown,
+  ChevronUp,
+  BrainCircuit,
+  ShieldAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import api from "@/app/lib/api";
 
@@ -16,6 +25,35 @@ type Prediction = {
   feature_payload?: Record<string, string | number | null> | null;
 } | null;
 
+type RuleScore = {
+  total_score?: number | null;
+  energy_instability_score?: number | null;
+  mfcc_variability_score?: number | null;
+  spectral_fluctuation_score?: number | null;
+  zcr_activity_score?: number | null;
+  notes?: string | null;
+} | null;
+
+type FeatureRecord = {
+  duration_seconds?: string | number | null;
+  mfcc_mean?: string | number | null;
+  mfcc_std?: string | number | null;
+  mfcc_delta_mean?: string | number | null;
+  mfcc_delta_std?: string | number | null;
+  mfcc_delta2_mean?: string | number | null;
+  mfcc_delta2_std?: string | number | null;
+  spectral_centroid_mean?: string | number | null;
+  spectral_centroid_std?: string | number | null;
+  spectral_rolloff_mean?: string | number | null;
+  spectral_rolloff_std?: string | number | null;
+  spectral_bandwidth_mean?: string | number | null;
+  spectral_bandwidth_std?: string | number | null;
+  rms_mean?: string | number | null;
+  rms_std?: string | number | null;
+  zcr_mean?: string | number | null;
+  zcr_std?: string | number | null;
+} | null;
+
 type VoiceSample = {
   id: number;
   original_filename: string;
@@ -28,12 +66,16 @@ type VoiceSample = {
   uploaded_at: string | null;
   created_at: string;
   prediction?: Prediction;
+  rule_score?: RuleScore;
+  ruleScore?: RuleScore;
+  feature?: FeatureRecord;
 };
 
 export default function ScreeningHistoryPage() {
   const [samples, setSamples] = useState<VoiceSample[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [openItemId, setOpenItemId] = useState<number | null>(null);
 
   const fetchSamples = async (isRefresh = false) => {
     try {
@@ -81,6 +123,13 @@ export default function ScreeningHistoryPage() {
     return `${(size / (1024 * 1024)).toFixed(2)} MB`;
   };
 
+  const formatValue = (value: string | number | null | undefined, digits = 2) => {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "number") return value.toFixed(digits);
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? String(value) : parsed.toFixed(digits);
+  };
+
   const getRiskBadgeClasses = (riskLevel: string | null | undefined) => {
     if (!riskLevel) {
       return "border-[var(--border)] bg-[var(--muted)] text-[var(--foreground)]";
@@ -111,27 +160,6 @@ export default function ScreeningHistoryPage() {
     return "border-yellow-500/30 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400";
   };
 
-  const pickKeyFeatures = (
-    featurePayload?: Record<string, string | number | null> | null
-  ) => {
-    if (!featurePayload) return [];
-
-    const keys = [
-      "duration_seconds",
-      "mfcc_std",
-      "spectral_bandwidth_std",
-      "rms_std",
-      "zcr_mean",
-    ];
-
-    return keys
-      .filter((key) => key in featurePayload)
-      .map((key) => ({
-        key,
-        value: featurePayload[key],
-      }));
-  };
-
   return (
     <section className="space-y-6">
       <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
@@ -140,7 +168,7 @@ export default function ScreeningHistoryPage() {
             <h2 className="text-2xl font-semibold">Screening History</h2>
             <p className="mt-3 text-sm leading-7 opacity-75">
               View your uploaded voice samples, prediction results, extracted
-              feature insights, and processing state.
+              features, and explainable rule breakdown.
             </p>
           </div>
 
@@ -206,13 +234,15 @@ export default function ScreeningHistoryPage() {
             <h3 className="mt-5 text-xl font-semibold">No screening history yet</h3>
             <p className="mt-3 max-w-md text-sm leading-7 opacity-75">
               Once you upload voice samples from the New Screening page, they
-              will appear here with prediction and feature details.
+              will appear here with full explainable details.
             </p>
           </div>
         ) : (
           <div className="space-y-5">
             {samples.map((sample) => {
-              const features = pickKeyFeatures(sample.prediction?.feature_payload);
+              const ruleScore = sample.ruleScore || sample.rule_score || null;
+              const isOpen = openItemId === sample.id;
+
               return (
                 <div
                   key={sample.id}
@@ -252,7 +282,7 @@ export default function ScreeningHistoryPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 text-sm lg:min-w-[280px]">
+                    <div className="grid gap-3 text-sm lg:min-w-[300px]">
                       <div>
                         <span className="opacity-60">Duration:</span>{" "}
                         <span className="font-medium">
@@ -285,72 +315,151 @@ export default function ScreeningHistoryPage() {
                           {sample.prediction?.rule_score ?? "—"}
                         </span>
                       </div>
-                      <div>
-                        <span className="opacity-60">Model:</span>{" "}
-                        <span className="font-medium">
-                          {sample.prediction?.model_used || "—"}
-                        </span>
-                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 xl:col-span-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
-                        Screening Summary
-                      </p>
-                      <p className="mt-3 text-sm leading-7 opacity-80">
-                        {sample.prediction?.summary ||
-                          "Summary will appear here once processing has completed."}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+                  <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="flex items-center gap-2">
-                        <AudioLines size={16} />
-                        <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
-                          Key Features
-                        </p>
+                        <BrainCircuit size={18} />
+                        <p className="text-sm font-semibold">Screening Overview</p>
                       </div>
 
-                      <div className="mt-3 space-y-2 text-sm">
-                        {features.length > 0 ? (
-                          features.map((feature) => (
-                            <div
-                              key={feature.key}
-                              className="flex items-center justify-between gap-3 rounded-xl bg-[var(--muted)] px-3 py-2"
-                            >
-                              <span className="opacity-70">{feature.key}</span>
-                              <span className="font-medium">
-                                {typeof feature.value === "number"
-                                  ? feature.value.toFixed(2)
-                                  : feature.value ?? "—"}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenItemId((prev) => (prev === sample.id ? null : sample.id))
+                        }
+                        className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-medium transition hover:bg-[var(--muted)]"
+                      >
+                        {isOpen ? (
+                          <>
+                            <ChevronUp size={16} />
+                            Hide Details
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown size={16} />
+                            View Details
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <p className="mt-4 text-sm leading-7 opacity-80">
+                      {sample.prediction?.summary ||
+                        "Summary will appear here once processing has completed."}
+                    </p>
+                  </div>
+
+                  {isOpen && (
+                    <div className="mt-5 space-y-4">
+                      <div className="grid gap-4 xl:grid-cols-3">
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+                          <div className="flex items-center gap-2">
+                            <ShieldAlert size={16} />
+                            <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
+                              Rule Breakdown
+                            </p>
+                          </div>
+
+                          <div className="mt-4 space-y-3 text-sm">
+                            <div className="flex items-center justify-between rounded-xl bg-[var(--muted)] px-3 py-2">
+                              <span>Energy Instability</span>
+                              <span className="font-semibold">
+                                {ruleScore?.energy_instability_score ?? "—"}
                               </span>
                             </div>
-                          ))
-                        ) : (
-                          <p className="text-sm opacity-70">
-                            Feature values will appear after completed processing.
+                            <div className="flex items-center justify-between rounded-xl bg-[var(--muted)] px-3 py-2">
+                              <span>MFCC Variability</span>
+                              <span className="font-semibold">
+                                {ruleScore?.mfcc_variability_score ?? "—"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between rounded-xl bg-[var(--muted)] px-3 py-2">
+                              <span>Spectral Fluctuation</span>
+                              <span className="font-semibold">
+                                {ruleScore?.spectral_fluctuation_score ?? "—"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between rounded-xl bg-[var(--muted)] px-3 py-2">
+                              <span>ZCR Activity</span>
+                              <span className="font-semibold">
+                                {ruleScore?.zcr_activity_score ?? "—"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2 font-semibold">
+                              <span>Total Score</span>
+                              <span>{ruleScore?.total_score ?? "—"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 xl:col-span-2">
+                          <div className="flex items-center gap-2">
+                            <AudioLines size={16} />
+                            <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
+                              Extracted Features
+                            </p>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            <FeatureChip label="Duration" value={sample.feature?.duration_seconds} />
+                            <FeatureChip label="MFCC Mean" value={sample.feature?.mfcc_mean} />
+                            <FeatureChip label="MFCC Std" value={sample.feature?.mfcc_std} />
+                            <FeatureChip label="MFCC Δ Mean" value={sample.feature?.mfcc_delta_mean} />
+                            <FeatureChip label="MFCC Δ Std" value={sample.feature?.mfcc_delta_std} />
+                            <FeatureChip label="MFCC Δ² Mean" value={sample.feature?.mfcc_delta2_mean} />
+                            <FeatureChip label="MFCC Δ² Std" value={sample.feature?.mfcc_delta2_std} />
+                            <FeatureChip label="Spec. Centroid Mean" value={sample.feature?.spectral_centroid_mean} />
+                            <FeatureChip label="Spec. Centroid Std" value={sample.feature?.spectral_centroid_std} />
+                            <FeatureChip label="Rolloff Mean" value={sample.feature?.spectral_rolloff_mean} />
+                            <FeatureChip label="Rolloff Std" value={sample.feature?.spectral_rolloff_std} />
+                            <FeatureChip label="Bandwidth Mean" value={sample.feature?.spectral_bandwidth_mean} />
+                            <FeatureChip label="Bandwidth Std" value={sample.feature?.spectral_bandwidth_std} />
+                            <FeatureChip label="RMS Mean" value={sample.feature?.rms_mean} digits={4} />
+                            <FeatureChip label="RMS Std" value={sample.feature?.rms_std} digits={4} />
+                            <FeatureChip label="ZCR Mean" value={sample.feature?.zcr_mean} digits={4} />
+                            <FeatureChip label="ZCR Std" value={sample.feature?.zcr_std} digits={4} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
+                            Rule Notes
                           </p>
-                        )}
+                          <p className="mt-3 text-sm leading-7 opacity-80">
+                            {ruleScore?.notes ||
+                              "Rule-based notes will appear here after scoring."}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
+                            Processing Notes
+                          </p>
+                          <p className="mt-3 text-sm leading-7 opacity-80">
+                            {sample.prediction?.error_message
+                              ? sample.prediction.error_message
+                              : sample.prediction?.processing_status === "completed"
+                              ? "Prediction completed successfully using the current rule-based signal processing engine."
+                              : sample.prediction?.processing_status === "failed"
+                              ? "Prediction failed during processing."
+                              : "Prediction is pending or still processing."}
+                          </p>
+
+                          <div className="mt-4 text-sm">
+                            <span className="opacity-60">Model Used:</span>{" "}
+                            <span className="font-medium">
+                              {sample.prediction?.model_used || "—"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
-                      Processing Notes
-                    </p>
-                    <p className="mt-3 text-sm leading-7 opacity-80">
-                      {sample.prediction?.error_message
-                        ? sample.prediction.error_message
-                        : sample.prediction?.processing_status === "completed"
-                        ? "Prediction completed successfully using the current signal-processing rule engine."
-                        : sample.prediction?.processing_status === "failed"
-                        ? "Prediction failed during processing."
-                        : "Prediction is pending or still processing."}
-                    </p>
-                  </div>
+                  )}
                 </div>
               );
             })}
@@ -358,5 +467,31 @@ export default function ScreeningHistoryPage() {
         )}
       </div>
     </section>
+  );
+}
+
+function FeatureChip({
+  label,
+  value,
+  digits = 2,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  digits?: number;
+}) {
+  const formatted =
+    value === null || value === undefined || value === ""
+      ? "—"
+      : typeof value === "number"
+      ? value.toFixed(digits)
+      : Number.isNaN(Number(value))
+      ? String(value)
+      : Number(value).toFixed(digits);
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 py-3">
+      <p className="text-[11px] uppercase tracking-wide opacity-60">{label}</p>
+      <p className="mt-2 text-sm font-semibold">{formatted}</p>
+    </div>
   );
 }

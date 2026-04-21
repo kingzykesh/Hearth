@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.services.audio_preprocessing import load_and_preprocess_audio
 from app.services.feature_extraction import extract_features
 from app.services.rule_engine import run_rule_based_screening
+from inference.predict_stress import predict_stress
+from inference.predict_depression import predict_depression
+from inference.predict_combined import predict_combined
 
 app = FastAPI(title="Hearth ML Engine")
 
@@ -29,21 +32,32 @@ async def analyze(audio: UploadFile = File(...)):
         if not file_bytes:
             raise HTTPException(status_code=400, detail="Uploaded audio file is empty.")
 
-        y, sr = load_and_preprocess_audio(file_bytes, target_sr=16000)
+        y, sr = load_and_preprocess_audio(file_bytes, audio.filename, target_sr=16000)
         features = extract_features(y, sr)
-        screening_result = run_rule_based_screening(features)
+        rule_result = run_rule_based_screening(features)
+
+        stress_result = predict_stress(features)
+        depression_result = predict_depression(features)
+        combined = predict_combined(stress_result, depression_result, rule_result)
 
         return {
-            "risk_level": screening_result["risk_level"],
-            "confidence_score": screening_result["confidence_score"],
-            "summary": screening_result["summary"],
-            "rule_score": screening_result["rule_score"],
-            "model_used": "rule-based-signal-processor-v1",
+            "risk_level": rule_result["risk_level"],
+            "confidence_score": rule_result["confidence_score"],
+            "summary": combined["combined_summary"],
+            "rule_score": rule_result["rule_score"],
+            "rule_breakdown": rule_result["rule_breakdown"],
+            "notes": rule_result["notes"],
+            "model_used": "rule-based-signal-processor-v1 + wellness-models",
             "features": features,
+            "stress_result": stress_result,
+            "depression_result": depression_result,
         }
 
     except HTTPException:
         raise
 
     except Exception as e:
+        import traceback
+        print("ANALYZE ERROR:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")

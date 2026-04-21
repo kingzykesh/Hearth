@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Prediction extends Model
 {
@@ -30,6 +31,16 @@ class Prediction extends Model
             'processed_at' => 'datetime',
         ];
     }
+
+    public function feature(): HasOne
+{
+    return $this->hasOne(Feature::class);
+}
+
+public function ruleScore()
+{
+    return $this->hasOne(RuleScore::class);
+}
 
     public function user(): BelongsTo
     {

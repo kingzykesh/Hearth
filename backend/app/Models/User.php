@@ -16,14 +16,15 @@ class User extends Authenticatable implements MustVerifyEmail
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'gender',
-        'age',
-        'consent',
-        'terms_accepted',
-    ];
+    'name',
+    'email',
+    'password',
+    'gender',
+    'age',
+    'consent',
+    'terms_accepted',
+    'is_active',
+];
 
     protected $hidden = [
         'password',
@@ -40,6 +41,16 @@ public function predictions(): HasMany
     return $this->hasMany(Prediction::class);
 }
 
+public function features(): HasMany
+{
+    return $this->hasMany(Feature::class);
+}
+
+public function ruleScores()
+{
+    return $this->hasMany(RuleScore::class);
+}
+
     protected function casts(): array
     {
         return [
@@ -47,6 +58,7 @@ public function predictions(): HasMany
             'password' => 'hashed',
             'consent' => 'boolean',
             'terms_accepted' => 'boolean',
+            'is_active' => 'boolean',
             'age' => 'integer',
         ];
     }

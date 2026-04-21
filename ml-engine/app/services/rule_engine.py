@@ -1,11 +1,16 @@
 def run_rule_based_screening(features: dict):
     """
     Simple explainable screening logic using handcrafted thresholds.
-    This is not diagnosis. It produces a preliminary screening score.
+    Returns both total score and rule breakdown.
     """
 
-    score = 0
+    total_score = 0
     notes = []
+
+    energy_score = 0
+    mfcc_score = 0
+    spectral_score = 0
+    zcr_score = 0
 
     rms_std = features.get("rms_std", 0)
     mfcc_std = features.get("mfcc_std", 0)
@@ -14,46 +19,44 @@ def run_rule_based_screening(features: dict):
 
     # Energy instability
     if rms_std > 0.08:
-        score += 25
+        energy_score = 25
         notes.append("Elevated variability detected in voice energy.")
-
     elif rms_std > 0.04:
-        score += 12
+        energy_score = 12
         notes.append("Mild variability detected in voice energy.")
 
-    # MFCC instability
+    # MFCC variability
     if mfcc_std > 90:
-        score += 25
+        mfcc_score = 25
         notes.append("High cepstral variability detected in vocal features.")
-
     elif mfcc_std > 55:
-        score += 12
+        mfcc_score = 12
         notes.append("Moderate cepstral variability detected in vocal features.")
 
-    # Spectral instability
+    # Spectral fluctuation
     if spectral_bandwidth_std > 1200:
-        score += 25
+        spectral_score = 25
         notes.append("Significant spectral fluctuation observed.")
-
     elif spectral_bandwidth_std > 700:
-        score += 12
+        spectral_score = 12
         notes.append("Moderate spectral fluctuation observed.")
 
-    # Noisiness / irregular crossing
+    # ZCR activity
     if zcr_mean > 0.18:
-        score += 15
+        zcr_score = 15
         notes.append("Elevated zero-crossing activity may reflect noisier vocal behavior.")
-
     elif zcr_mean > 0.10:
-        score += 8
+        zcr_score = 8
         notes.append("Mild zero-crossing elevation observed.")
 
-    if score >= 45:
+    total_score = energy_score + mfcc_score + spectral_score + zcr_score
+
+    if total_score >= 45:
         risk_level = "High Risk"
-        confidence_score = min(95, 60 + score * 0.6)
+        confidence_score = min(95, 60 + total_score * 0.6)
     else:
         risk_level = "Low Risk"
-        confidence_score = min(92, 70 + max(score, 5) * 0.4)
+        confidence_score = min(92, 70 + max(total_score, 5) * 0.4)
 
     if notes:
         summary = " ".join(notes)
@@ -63,6 +66,13 @@ def run_rule_based_screening(features: dict):
     return {
         "risk_level": risk_level,
         "confidence_score": round(confidence_score, 2),
-        "rule_score": score,
+        "rule_score": total_score,
         "summary": summary,
+        "rule_breakdown": {
+            "energy_instability_score": energy_score,
+            "mfcc_variability_score": mfcc_score,
+            "spectral_fluctuation_score": spectral_score,
+            "zcr_activity_score": zcr_score,
+        },
+        "notes": notes,
     }

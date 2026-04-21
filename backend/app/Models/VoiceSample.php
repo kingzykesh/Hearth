@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+
 class VoiceSample extends Model
 {
     protected $fillable = [
@@ -25,6 +26,15 @@ class VoiceSample extends Model
     return $this->hasOne(Prediction::class);
 }
 
+public function ruleScore()
+{
+    return $this->hasOne(RuleScore::class);
+}
+
+public function feature(): HasOne
+{
+    return $this->hasOne(Feature::class);
+}
     protected function casts(): array
     {
         return [
