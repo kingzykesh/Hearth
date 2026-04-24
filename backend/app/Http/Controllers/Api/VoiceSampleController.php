@@ -7,6 +7,7 @@ use App\Models\Feature;
 use App\Models\Prediction;
 use App\Models\RuleScore;
 use App\Models\VoiceSample;
+use App\Services\AiCoachService;
 use App\Services\MlPredictionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,8 @@ use Illuminate\Support\Str;
 class VoiceSampleController extends Controller
 {
     public function __construct(
-        protected MlPredictionService $mlPredictionService
+        protected MlPredictionService $mlPredictionService,
+        protected AiCoachService $aiCoachService
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -24,6 +26,8 @@ class VoiceSampleController extends Controller
         $validated = $request->validate([
             'audio' => ['required', 'file', 'mimetypes:audio/webm,audio/wav,audio/mpeg,video/webm', 'max:10240'],
             'duration_seconds' => ['nullable', 'numeric', 'min:1', 'max:60'],
+            'checkin_prompt' => ['nullable', 'string', 'max:255'],
+            'user_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $file = $request->file('audio');
@@ -59,6 +63,21 @@ class VoiceSampleController extends Controller
                 $file->getClientOriginalName()
             );
 
+            $checkinPrompt = $validated['checkin_prompt'] ?? 'How are you feeling today?';
+            $userNote = $validated['user_note'] ?? null;
+
+            $coach = $this->aiCoachService->generate([
+                'checkin_prompt' => $checkinPrompt,
+                'user_note' => $userNote,
+                'hearth_score' => $mlResult['hearth_score'] ?? null,
+                'hearth_band' => $mlResult['hearth_band'] ?? null,
+                'risk_level' => $mlResult['risk_level'] ?? null,
+                'confidence_score' => $mlResult['confidence_score'] ?? null,
+                'rule_score' => $mlResult['rule_score'] ?? null,
+                'summary' => $mlResult['summary'] ?? null,
+                'model_used' => $mlResult['model_used'] ?? null,
+            ]);
+
             $voiceSample->update([
                 'processing_status' => 'processed',
             ]);
@@ -67,9 +86,19 @@ class VoiceSampleController extends Controller
                 'risk_level' => $mlResult['risk_level'] ?? null,
                 'confidence_score' => $mlResult['confidence_score'] ?? null,
                 'rule_score' => $mlResult['rule_score'] ?? null,
+                'hearth_score' => $mlResult['hearth_score'] ?? null,
+                'hearth_band' => $mlResult['hearth_band'] ?? null,
                 'summary' => $mlResult['summary'] ?? null,
-                'model_used' => $mlResult['model_used'] ?? 'rule-based-signal-processor-v1',
+                'model_used' => $mlResult['model_used'] ?? 'hearth-xgboost-hybrid-v1',
                 'feature_payload' => $mlResult['features'] ?? null,
+                'score_breakdown' => $mlResult['score_breakdown'] ?? null,
+
+                'checkin_prompt' => $checkinPrompt,
+                'user_note' => $userNote,
+                'ai_coach_summary' => $coach['summary'] ?? null,
+                'ai_recommendations' => $coach['recommendations'] ?? [],
+                'ai_safety_note' => $coach['safety_note'] ?? 'This is a wellness screening, not a medical diagnosis.',
+
                 'processing_status' => 'completed',
                 'processed_at' => now(),
                 'error_message' => null,
@@ -77,9 +106,7 @@ class VoiceSampleController extends Controller
 
             if (!empty($mlResult['features']) && is_array($mlResult['features'])) {
                 Feature::updateOrCreate(
-                    [
-                        'voice_sample_id' => $voiceSample->id,
-                    ],
+                    ['voice_sample_id' => $voiceSample->id],
                     [
                         'user_id' => $request->user()->id,
                         'prediction_id' => $prediction->id,
@@ -105,9 +132,7 @@ class VoiceSampleController extends Controller
             }
 
             RuleScore::updateOrCreate(
-                [
-                    'voice_sample_id' => $voiceSample->id,
-                ],
+                ['voice_sample_id' => $voiceSample->id],
                 [
                     'user_id' => $request->user()->id,
                     'prediction_id' => $prediction->id,
@@ -137,6 +162,55 @@ class VoiceSampleController extends Controller
             'message' => 'Voice sample uploaded successfully.',
             'data' => $voiceSample->load(['prediction', 'feature', 'ruleScore']),
         ], 201);
+    }
+
+    public function trend(Request $request): JsonResponse
+    {
+        $items = Prediction::where('user_id', $request->user()->id)
+            ->whereNotNull('hearth_score')
+            ->latest('created_at')
+            ->take(10)
+            ->get([
+                'hearth_score',
+                'risk_level',
+                'hearth_band',
+                'confidence_score',
+                'created_at',
+            ])
+            ->reverse()
+            ->values();
+
+        $first = $items->first();
+        $last = $items->last();
+
+        $weeklyChange = null;
+        $trend = 'stable';
+
+        if ($first && $last) {
+            $weeklyChange = (int) $last->hearth_score - (int) $first->hearth_score;
+
+            if ($weeklyChange >= 5) {
+                $trend = 'improving';
+            } elseif ($weeklyChange <= -5) {
+                $trend = 'declining';
+            }
+        }
+
+        $message = match ($trend) {
+            'improving' => 'Your vocal wellness improved over recent screenings.',
+            'declining' => 'Your stress markers increased this week.',
+            default => 'Your vocal wellness has remained relatively stable.',
+        };
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'items' => $items,
+                'weekly_change' => $weeklyChange,
+                'trend' => $trend,
+                'message' => $message,
+            ],
+        ]);
     }
 
     public function index(Request $request): JsonResponse

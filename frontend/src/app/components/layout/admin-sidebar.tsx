@@ -9,7 +9,11 @@ import {
   BarChart3,
   Settings,
   Shield,
+  LogOut,
+  Database,
 } from "lucide-react";
+import { toast } from "sonner"; // Added toast
+import api from "@/app/lib/api"; // Added api utility
 import { cn } from "@/app/lib/util";
 
 const navItems = [
@@ -29,6 +33,11 @@ const navItems = [
     icon: Activity,
   },
   {
+  label: "Research Dataset",
+  href: "/admin/research",
+  icon: Database,
+  },
+  {
     label: "Analytics",
     href: "/admin/analytics",
     icon: BarChart3,
@@ -42,6 +51,17 @@ const navItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+
+  // Consistent logout logic from DashboardSidebar
+  const handleLogout = async () => {
+    try {
+      await api.post("/api/auth/logout");
+      toast.success("Logged out successfully.");
+      window.location.href = "/login";
+    } catch {
+      toast.error("Logout failed.");
+    }
+  };
 
   return (
     <aside className="flex h-full w-full flex-col rounded-[28px] border border-[var(--border)] bg-[var(--card)]/95 p-4 shadow-xl backdrop-blur">
@@ -76,6 +96,16 @@ export default function AdminSidebar() {
           );
         })}
       </nav>
+
+      {/* Logout button matching User Dashboard design */}
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition hover:bg-[var(--muted)]"
+      >
+        <LogOut size={18} />
+        <span>Logout</span>
+      </button>
     </aside>
   );
 }

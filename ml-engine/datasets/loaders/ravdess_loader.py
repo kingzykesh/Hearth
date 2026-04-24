@@ -4,6 +4,8 @@ from datasets.loaders.base_loader import BaseDatasetLoader
 
 
 class RAVDESSLoader(BaseDatasetLoader):
+    def __init__(self, dataset_root="datasets/raw/stress/ravdess"):
+        super().__init__(dataset_root)
     """
     Example filename:
     03-01-05-01-01-01-01.wav

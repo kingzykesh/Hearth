@@ -8,6 +8,9 @@ import {
   LayoutDashboard,
   LogOut,
   User,
+  Mic,
+  AudioLines,
+  Waves, // Replaced one Activity import with Mic
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/app/lib/api";
@@ -23,6 +26,16 @@ const navItems = [
     label: "New Screening",
     href: "/dashboard/new-screening",
     icon: Activity,
+  },
+  {
+    label: "Hearth Check",
+    href: "/dashboard/screening",
+    icon: AudioLines, 
+  },
+   {
+    label: "Hearth Check",
+    href: "/dashboard/screen",
+    icon: Waves, 
   },
   {
     label: "History",

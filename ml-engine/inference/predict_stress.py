@@ -1,5 +1,5 @@
 import joblib
-import numpy as np
+import pandas as pd
 from pathlib import Path
 from training.feature_pipeline import FEATURE_COLUMNS
 
@@ -15,14 +15,14 @@ def predict_stress(feature_dict: dict):
     model = joblib.load(MODEL_PATH)
     encoder = joblib.load(ENCODER_PATH)
 
-    X = np.array([[feature_dict[col] for col in FEATURE_COLUMNS]])
+    X = pd.DataFrame([[feature_dict[col] for col in FEATURE_COLUMNS]], columns=FEATURE_COLUMNS)
 
     pred_idx = model.predict(X)[0]
     pred_label = encoder.inverse_transform([pred_idx])[0]
 
     if hasattr(model, "predict_proba"):
         proba = model.predict_proba(X)[0]
-        confidence = float(np.max(proba) * 100)
+        confidence = float(max(proba) * 100)
     else:
         confidence = 75.0
 

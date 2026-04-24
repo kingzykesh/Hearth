@@ -15,8 +15,6 @@ if os.path.exists(ffprobe_candidate):
 
 
 def load_audio_file(file_path: str, target_sr: int = 16000):
-    suffix = os.path.splitext(file_path)[1].lower() or ".wav"
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as output_file:
         output_path = output_file.name
 
@@ -44,6 +42,107 @@ def load_audio_file(file_path: str, target_sr: int = 16000):
             os.remove(output_path)
 
 
+def extract_pitch_features(y, sr):
+    try:
+        f0, voiced_flag, _ = librosa.pyin(
+            y,
+            fmin=librosa.note_to_hz("C2"),
+            fmax=librosa.note_to_hz("C7"),
+        )
+
+        voiced_f0 = f0[~np.isnan(f0)] if f0 is not None else np.array([])
+
+        pitch_mean = float(np.mean(voiced_f0)) if voiced_f0.size > 0 else 0.0
+        pitch_std = float(np.std(voiced_f0)) if voiced_f0.size > 0 else 0.0
+        voiced_ratio = float(np.mean(voiced_flag)) if voiced_flag is not None else 0.0
+
+        if voiced_f0.size > 1:
+            x = np.arange(len(voiced_f0))
+            pitch_slope = float(np.polyfit(x, voiced_f0, 1)[0])
+            jitter_proxy = float(np.mean(np.abs(np.diff(voiced_f0))))
+        else:
+            pitch_slope = 0.0
+            jitter_proxy = 0.0
+
+    except Exception:
+        pitch_mean = 0.0
+        pitch_std = 0.0
+        voiced_ratio = 0.0
+        pitch_slope = 0.0
+        jitter_proxy = 0.0
+
+    return {
+        "pitch_mean": pitch_mean,
+        "pitch_std": pitch_std,
+        "voiced_ratio": voiced_ratio,
+        "pitch_slope": pitch_slope,
+        "jitter_proxy": jitter_proxy,
+    }
+
+
+def extract_tempo_feature(y, sr):
+    try:
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        tempo_values = librosa.feature.tempo(onset_envelope=onset_env, sr=sr)
+        tempo = float(tempo_values[0]) if len(tempo_values) > 0 else 0.0
+    except Exception:
+        tempo = 0.0
+
+    return {
+        "tempo": tempo,
+    }
+
+
+def extract_pause_and_speaking_features(y, sr):
+    try:
+        frame_length = 2048
+        hop_length = 512
+        rms = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
+
+        if rms.size == 0:
+            return {
+                "silence_ratio": 0.0,
+                "speaking_rate_proxy": 0.0,
+                "shimmer_proxy": 0.0,
+                "hnr_proxy": 0.0,
+            }
+
+        threshold = max(0.01, float(np.mean(rms) * 0.5))
+        silent_frames = rms < threshold
+        silence_ratio = float(np.mean(silent_frames))
+
+        onset_frames = librosa.onset.onset_detect(y=y, sr=sr, hop_length=hop_length)
+        duration_seconds = max(len(y) / sr, 1e-6)
+        speaking_rate_proxy = float(len(onset_frames) / duration_seconds)
+
+        voiced_rms = rms[rms >= threshold]
+        if voiced_rms.size > 1:
+            shimmer_proxy = float(np.mean(np.abs(np.diff(voiced_rms))))
+        else:
+            shimmer_proxy = 0.0
+
+        harmonic = librosa.effects.harmonic(y)
+        noise = y - harmonic
+        harmonic_energy = float(np.mean(harmonic ** 2)) + 1e-8
+        noise_energy = float(np.mean(noise ** 2)) + 1e-8
+        hnr_proxy = float(10 * np.log10(harmonic_energy / noise_energy))
+
+        return {
+            "silence_ratio": silence_ratio,
+            "speaking_rate_proxy": speaking_rate_proxy,
+            "shimmer_proxy": shimmer_proxy,
+            "hnr_proxy": hnr_proxy,
+        }
+
+    except Exception:
+        return {
+            "silence_ratio": 0.0,
+            "speaking_rate_proxy": 0.0,
+            "shimmer_proxy": 0.0,
+            "hnr_proxy": 0.0,
+        }
+
+
 def extract_features(y, sr: int):
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
     mfcc_delta = librosa.feature.delta(mfcc)
@@ -56,7 +155,7 @@ def extract_features(y, sr: int):
     rms = librosa.feature.rms(y=y)
     zcr = librosa.feature.zero_crossing_rate(y)
 
-    return {
+    features = {
         "duration_seconds": round(len(y) / sr, 2),
         "mfcc_mean": float(np.mean(mfcc)),
         "mfcc_std": float(np.std(mfcc)),
@@ -75,6 +174,12 @@ def extract_features(y, sr: int):
         "zcr_mean": float(np.mean(zcr)),
         "zcr_std": float(np.std(zcr)),
     }
+
+    features.update(extract_pitch_features(y, sr))
+    features.update(extract_tempo_feature(y, sr))
+    features.update(extract_pause_and_speaking_features(y, sr))
+
+    return features
 
 
 FEATURE_COLUMNS = [
@@ -95,4 +200,14 @@ FEATURE_COLUMNS = [
     "rms_std",
     "zcr_mean",
     "zcr_std",
+    "pitch_mean",
+    "pitch_std",
+    "voiced_ratio",
+    "pitch_slope",
+    "jitter_proxy",
+    "tempo",
+    "silence_ratio",
+    "speaking_rate_proxy",
+    "shimmer_proxy",
+    "hnr_proxy",
 ]

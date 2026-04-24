@@ -51,6 +51,16 @@ public function ruleScores()
     return $this->hasMany(RuleScore::class);
 }
 
+public function researchConsent()
+{
+    return $this->hasOne(ResearchConsent::class);
+}
+
+public function wellnessSurveys()
+{
+    return $this->hasMany(WellnessSurvey::class);
+}
+
     protected function casts(): array
     {
         return [

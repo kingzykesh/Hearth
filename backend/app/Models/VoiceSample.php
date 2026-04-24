@@ -31,6 +31,16 @@ public function ruleScore()
     return $this->hasOne(RuleScore::class);
 }
 
+public function wellnessSurvey()
+{
+    return $this->hasOne(WellnessSurvey::class);
+}
+
+public function trainingExport()
+{
+    return $this->hasOne(TrainingExport::class);
+}
+
 public function feature(): HasOne
 {
     return $this->hasOne(Feature::class);

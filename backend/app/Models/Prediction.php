@@ -18,7 +18,15 @@ class Prediction extends Model
         'model_used',
         'feature_payload',
         'processing_status',
+        'hearth_score',
+        'hearth_band',
+        'score_breakdown',
         'error_message',
+        'checkin_prompt',
+        'user_note',
+        'ai_coach_summary',
+        'ai_recommendations',
+        'ai_safety_note',
         'processed_at',
     ];
 
@@ -27,25 +35,33 @@ class Prediction extends Model
         return [
             'confidence_score' => 'decimal:2',
             'rule_score' => 'integer',
+            'hearth_score' => 'integer',
             'feature_payload' => 'array',
+            'score_breakdown' => 'array',
+            'ai_recommendations' => 'array',
             'processed_at' => 'datetime',
         ];
     }
 
     public function feature(): HasOne
-{
-    return $this->hasOne(Feature::class);
-}
+    {
+        return $this->hasOne(Feature::class);
+    }
 
-public function ruleScore()
-{
-    return $this->hasOne(RuleScore::class);
-}
+    public function ruleScore(): HasOne
+    {
+        return $this->hasOne(RuleScore::class);
+    }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
+
+    public function wellnessSurvey()
+{
+    return $this->hasOne(WellnessSurvey::class);
+}
 
     public function voiceSample(): BelongsTo
     {

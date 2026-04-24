@@ -1,235 +1,218 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  BrainCircuit,
+  Loader2,
+  Shield,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import api from "@/app/lib/api";
-import AdminStatCard from "@/app/components/admin/admin-stat-card";
-import {
-  BarChart,
-  Bar,
-  CartesianGrid,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
-
-type AnalyticsData = {
-  risk_distribution: {
-    low_risk: number;
-    high_risk: number;
-  };
-  processing_distribution: {
-    completed: number;
-    failed: number;
-    pending: number;
-  };
-  trend_7_days: {
-    date: string;
-    count: number;
-  }[];
-  metrics: {
-    total_users: number;
-    active_users: number;
-    total_screenings: number;
-    total_predictions: number;
-    avg_confidence: number;
-    avg_rule_score: number;
-    success_rate: number;
-  };
-};
 
 export default function AdminAnalyticsPage() {
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      try {
-        const response = await api.get("/api/admin/analytics");
-        setAnalytics(response.data.data);
-      } catch (error: any) {
-        toast.error(
-          error?.response?.data?.message || "Unable to load analytics."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchAnalytics = async () => {
+    try {
+      const res = await api.get("/api/admin/analytics");
+      setData(res.data.data);
+    } catch (error: any) {
+      toast.error("Unable to load analytics.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchAnalytics();
   }, []);
 
   if (loading) {
     return (
-      <section className="flex min-h-[40vh] items-center justify-center">
-        <div className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-5 py-3">
-          <Loader2 className="animate-spin" size={18} />
-          <span>Loading analytics...</span>
-        </div>
-      </section>
+      <div className="flex min-h-[70vh] items-center justify-center text-white">
+        <Loader2 className="animate-spin mr-3" />
+        Loading Analytics...
+      </div>
     );
   }
 
-  const riskChartData = [
-    {
-      name: "Low Risk",
-      value: analytics?.risk_distribution.low_risk ?? 0,
-    },
-    {
-      name: "High Risk",
-      value: analytics?.risk_distribution.high_risk ?? 0,
-    },
-  ];
-
-  const processingChartData = [
-    {
-      name: "Completed",
-      value: analytics?.processing_distribution.completed ?? 0,
-    },
-    {
-      name: "Failed",
-      value: analytics?.processing_distribution.failed ?? 0,
-    },
-    {
-      name: "Pending",
-      value: analytics?.processing_distribution.pending ?? 0,
-    },
-  ];
-
-  const trendData = analytics?.trend_7_days ?? [];
+  const metrics = data.metrics;
+  const ai = data.ai_cohort_insight;
 
   return (
     <section className="space-y-6">
-      <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">Analytics</h2>
-        <p className="mt-2 text-sm opacity-70">
-          Platform-wide charts and operational performance insights.
+      <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+        <h1 className="text-3xl font-bold text-white">
+          Hearth Admin Intelligence
+        </h1>
+        <p className="mt-2 text-white/60">
+          Real-time cohort wellness analytics and AI insights.
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard
-          label="Total Users"
-          value={analytics?.metrics.total_users ?? 0}
-          hint="All registered accounts."
+      <div className="grid gap-6 md:grid-cols-4">
+        <Card
+          icon={<Users />}
+          label="Users"
+          value={metrics.total_users}
         />
-        <AdminStatCard
-          label="Active Users"
-          value={analytics?.metrics.active_users ?? 0}
-          hint="Users currently allowed to access Hearth."
+        <Card
+          icon={<Activity />}
+          label="Screenings"
+          value={metrics.total_screenings}
         />
-        <AdminStatCard
-          label="Avg Confidence"
-          value={`${analytics?.metrics.avg_confidence ?? 0}%`}
-          hint="Average prediction confidence."
+        <Card
+          icon={<Shield />}
+          label="Avg Hearth Score"
+          value={metrics.avg_hearth_score}
         />
-        <AdminStatCard
+        <Card
+          icon={<BrainCircuit />}
           label="Success Rate"
-          value={`${analytics?.metrics.success_rate ?? 0}%`}
-          hint="Completed predictions over total predictions."
+          value={`${metrics.success_rate}%`}
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard
-          label="Total Screenings"
-          value={analytics?.metrics.total_screenings ?? 0}
-          hint="All uploaded voice samples."
-        />
-        <AdminStatCard
-          label="Total Predictions"
-          value={analytics?.metrics.total_predictions ?? 0}
-          hint="All prediction records generated."
-        />
-        <AdminStatCard
-          label="Avg Rule Score"
-          value={analytics?.metrics.avg_rule_score ?? 0}
-          hint="Average explainable scoring output."
-        />
-        <AdminStatCard
-          label="Failed Predictions"
-          value={analytics?.processing_distribution.failed ?? 0}
-          hint="Predictions that failed processing."
-        />
+      <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-6">
+        <div className="flex items-center gap-3">
+          <BrainCircuit className="text-emerald-300" />
+          <h2 className="text-xl font-semibold text-white">
+            AI Cohort Insight
+          </h2>
+        </div>
+
+        <p className="mt-4 text-white/80 leading-7">
+          {ai.summary}
+        </p>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <MiniStat
+            label="High Risk %"
+            value={`${ai.high_risk_percent}%`}
+          />
+          <MiniStat
+            label="Moderate Risk %"
+            value={`${ai.moderate_risk_percent}%`}
+          />
+          <MiniStat
+            label="Status"
+            value={ai.status}
+          />
+        </div>
+
+        <div className="mt-6">
+          <p className="text-sm text-white/50 mb-3">
+            Recommended Actions
+          </p>
+
+          <ul className="space-y-3">
+            {ai.recommendations.map((item: string, index: number) => (
+              <li
+                key={index}
+                className="rounded-2xl bg-black/20 px-4 py-3 text-white/80"
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-          <h3 className="text-xl font-semibold">Risk Distribution</h3>
-          <p className="mt-2 text-sm opacity-70">
-            Low-risk versus high-risk prediction volume.
-          </p>
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+          <h3 className="text-lg font-semibold text-white">
+            At-Risk Watchlist
+          </h3>
 
-          <div className="mt-6 h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={riskChartData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="value"
-                  nameKey="name"
-                  label
-                >
-                  <Cell />
-                  <Cell />
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="mt-5 space-y-4">
+            {data.at_risk_watchlist.map((item: any) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4"
+              >
+                <div className="flex items-center gap-2 text-red-300">
+                  <AlertTriangle size={16} />
+                  <span>{item.user_name}</span>
+                </div>
+
+                <p className="mt-2 text-sm text-white/80">
+                  Score: {item.hearth_score} • {item.risk_level}
+                </p>
+
+                <p className="mt-2 text-xs text-white/50">
+                  {item.user_email}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-          <h3 className="text-xl font-semibold">Processing Status</h3>
-          <p className="mt-2 text-sm opacity-70">
-            Completed, failed, and pending prediction jobs.
-          </p>
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+          <h3 className="text-lg font-semibold text-white">
+            Top AI Recommendations
+          </h3>
 
-          <div className="mt-6 h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={processingChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="value" name="Count" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="mt-5 space-y-4">
+            {data.top_recommendations.map((item: any, index: number) => (
+              <div
+                key={index}
+                className="rounded-2xl bg-white/[0.04] px-4 py-3 flex justify-between"
+              >
+                <span className="text-white/80">
+                  {item.recommendation}
+                </span>
+                <span className="text-emerald-300 font-semibold">
+                  {item.count}
+                </span>
+              </div>
+            ))}
           </div>
-        </div>
-      </div>
-
-      <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-        <h3 className="text-xl font-semibold">7-Day Screening Trend</h3>
-        <p className="mt-2 text-sm opacity-70">
-          Daily upload activity over the last seven days.
-        </p>
-
-        <div className="mt-6 h-[360px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="count" name="Uploads" strokeWidth={3} dot />
-            </LineChart>
-          </ResponsiveContainer>
         </div>
       </div>
     </section>
+  );
+}
+
+function Card({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+      <div className="flex items-center justify-between text-white/70">
+        <span>{label}</span>
+        {icon}
+      </div>
+
+      <h3 className="mt-4 text-3xl font-bold text-white">
+        {value}
+      </h3>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-2xl bg-black/20 p-4">
+      <p className="text-sm text-white/50">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-white">
+        {value}
+      </p>
+    </div>
   );
 }
