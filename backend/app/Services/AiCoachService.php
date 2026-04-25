@@ -22,29 +22,72 @@ class AiCoachService
                 'input' => [
                     [
                         'role' => 'system',
-                        'content' => 'You are Hearth AI Coach, a calm non-diagnostic wellness assistant. You do not diagnose. You explain voice wellness signals in simple, supportive language and give safe practical recommendations.'
+                        'content' => implode("\n", [
+                            'You are Hearth AI Coach, a calm non-diagnostic wellness assistant.',
+                            'You help students understand voice wellness signals in simple supportive language.',
+                            'You do not diagnose medical or mental health conditions.',
+                            'You do not claim the user has anxiety, depression, or any disease.',
+                            'You provide practical, safe, student-friendly recommendations.',
+                            'Keep your tone warm, clear, and empowering.',
+                        ]),
                     ],
                     [
                         'role' => 'user',
-                        'content' => json_encode($data)
+                        'content' => json_encode([
+                            'task' => 'Generate an expanded AI Coach result for this Hearth voice screening.',
+                            'input_data' => $data,
+                            'rules' => [
+                                'Do not diagnose.',
+                                'Do not use fear-based language.',
+                                'Mention that voice markers may reflect stress, tiredness, vocal strain, sleep issues, or workload.',
+                                'Use the user note if provided.',
+                                'Make advice practical for a student.',
+                                'Keep recommendations safe and simple.',
+                            ],
+                        ]),
                     ],
                 ],
                 'text' => [
                     'format' => [
                         'type' => 'json_schema',
-                        'name' => 'hearth_ai_coach_response',
+                        'name' => 'hearth_ai_coach_v2_response',
                         'schema' => [
                             'type' => 'object',
                             'additionalProperties' => false,
                             'properties' => [
-                                'summary' => ['type' => 'string'],
+                                'summary' => [
+                                    'type' => 'string',
+                                ],
+                                'vocal_wellness_interpretation' => [
+                                    'type' => 'string',
+                                ],
+                                'possible_contributors' => [
+                                    'type' => 'array',
+                                    'items' => ['type' => 'string'],
+                                ],
                                 'recommendations' => [
                                     'type' => 'array',
-                                    'items' => ['type' => 'string']
+                                    'items' => ['type' => 'string'],
                                 ],
-                                'safety_note' => ['type' => 'string'],
+                                'recovery_suggestion' => [
+                                    'type' => 'string',
+                                ],
+                                'follow_up_question' => [
+                                    'type' => 'string',
+                                ],
+                                'safety_note' => [
+                                    'type' => 'string',
+                                ],
                             ],
-                            'required' => ['summary', 'recommendations', 'safety_note'],
+                            'required' => [
+                                'summary',
+                                'vocal_wellness_interpretation',
+                                'possible_contributors',
+                                'recommendations',
+                                'recovery_suggestion',
+                                'follow_up_question',
+                                'safety_note',
+                            ],
                         ],
                     ],
                 ],
@@ -66,26 +109,72 @@ class AiCoachService
             return $this->fallback($data);
         }
 
+        $possibleContributors = $decoded['possible_contributors'] ?? [];
+
+        if (!is_array($possibleContributors)) {
+            $possibleContributors = [];
+        }
+
+        $expandedSummary = trim(
+            "Summary:\n" .
+            ($decoded['summary'] ?? 'Your screening has been reviewed by Hearth AI Coach.') .
+            "\n\nVocal Wellness Interpretation:\n" .
+            ($decoded['vocal_wellness_interpretation'] ?? 'Your voice markers were interpreted using Hearth wellness signals.') .
+            "\n\nPossible Contributors:\n" .
+            (!empty($possibleContributors) ? '• ' . implode("\n• ", $possibleContributors) : '• Stress, tiredness, vocal strain, workload, or sleep changes may contribute.') .
+            "\n\nRecovery Suggestion:\n" .
+            ($decoded['recovery_suggestion'] ?? 'Take a short break, hydrate, and check in again later.') .
+            "\n\nFollow-up Question:\n" .
+            ($decoded['follow_up_question'] ?? 'What do you think affected your wellness most today?')
+        );
+
         return [
-            'summary' => $decoded['summary'] ?? null,
+            'summary' => $expandedSummary,
             'recommendations' => $decoded['recommendations'] ?? [],
-            'safety_note' => $decoded['safety_note'] ?? 'This is a wellness screening, not a medical diagnosis.',
+            'safety_note' => $decoded['safety_note'] ?? 'Hearth provides wellness guidance only and does not provide medical diagnosis.',
         ];
     }
 
     private function fallback(array $data): array
     {
         $score = $data['hearth_score'] ?? null;
+        $band = $data['hearth_band'] ?? 'Not available';
         $risk = $data['risk_level'] ?? 'Not available';
+        $userNote = $data['user_note'] ?? null;
+
+        $summary = "Summary:\n";
+        $summary .= "Your latest screening shows a Hearth Score of {$score} with {$risk}. ";
+
+        if ($band) {
+            $summary .= "Your current band is {$band}. ";
+        }
+
+        $summary .= "\n\nVocal Wellness Interpretation:\n";
+        $summary .= "Your voice markers may reflect changes in energy, tiredness, vocal strain, workload, or stress. ";
+
+        if ($userNote) {
+            $summary .= "Your note also provides helpful context: {$userNote}";
+        }
+
+        $summary .= "\n\nPossible Contributors:\n";
+        $summary .= "• Sleep quality\n• Academic pressure\n• Hydration\n• Vocal strain\n• General tiredness";
+
+        $summary .= "\n\nRecovery Suggestion:\n";
+        $summary .= "Take a short reset break, drink water, reduce unnecessary vocal strain, and check in again later.";
+
+        $summary .= "\n\nFollow-up Question:\n";
+        $summary .= "Would you say today’s pressure is mostly academic, emotional, physical, or social?";
 
         return [
-            'summary' => "Your latest screening shows a Hearth Score of {$score} with {$risk}. This suggests your current vocal wellness should be monitored gently over time.",
+            'summary' => $summary,
             'recommendations' => [
-                'Take a short rest break.',
-                'Drink water and reduce vocal strain.',
-                'Check in again later to track your trend.',
+                'Take a 5–10 minute rest break.',
+                'Drink water and reduce vocal strain for a while.',
+                'Break your next study task into one small step.',
+                'Try slow breathing for one minute.',
+                'Check in again tomorrow to track your trend.',
             ],
-            'safety_note' => 'This is a wellness screening, not a medical diagnosis.',
+            'safety_note' => 'Hearth provides wellness guidance only and does not provide medical diagnosis.',
         ];
     }
 }

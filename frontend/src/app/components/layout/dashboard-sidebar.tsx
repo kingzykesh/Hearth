@@ -8,9 +8,8 @@ import {
   LayoutDashboard,
   LogOut,
   User,
-  Mic,
   AudioLines,
-  Waves, // Replaced one Activity import with Mic
+  Waves,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/app/lib/api";
@@ -26,16 +25,17 @@ const navItems = [
     label: "New Screening",
     href: "/dashboard/new-screening",
     icon: Activity,
+    disabled: true, // Mark this for maintenance
   },
   {
     label: "Hearth Check",
     href: "/dashboard/screening",
-    icon: AudioLines, 
+    icon: AudioLines,
   },
-   {
-    label: "Hearth Check",
+  {
+    label: "Wellbeing Check",
     href: "/dashboard/screen",
-    icon: Waves, 
+    icon: Waves,
   },
   {
     label: "History",
@@ -62,6 +62,13 @@ export default function DashboardSidebar() {
     }
   };
 
+  const handleMaintenanceClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    toast.error("System down for maintenance", {
+      description: "This feature is currently unavailable.",
+    });
+  };
+
   return (
     <aside className="flex h-full w-full flex-col rounded-[28px] border border-[var(--border)] bg-[var(--card)]/95 p-4 shadow-xl backdrop-blur">
       <div className="mb-6 px-2 pt-2">
@@ -74,18 +81,29 @@ export default function DashboardSidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
+          const commonStyles = cn(
+            "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition w-full",
+            isActive
+              ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-md"
+              : "hover:bg-[var(--muted)] text-[var(--foreground)]",
+            item.disabled && "opacity-70 cursor-not-allowed" // Visual hint it's disabled
+          );
+
+          if (item.disabled) {
+            return (
+              <button
+                key={item.href}
+                onClick={handleMaintenanceClick}
+                className={commonStyles}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            );
+          }
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
-                isActive
-                  ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-md"
-                  : "hover:bg-[var(--muted)]"
-              )}
-            >
+            <Link key={item.href} href={item.href} className={commonStyles}>
               <Icon size={18} />
               <span>{item.label}</span>
             </Link>
