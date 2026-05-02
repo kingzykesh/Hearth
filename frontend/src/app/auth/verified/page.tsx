@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function VerifiedPage() {
+function VerifiedContent() {
   const searchParams = useSearchParams();
   const verified = searchParams.get("verified");
   const message = searchParams.get("message");
@@ -37,5 +38,13 @@ export default function VerifiedPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function VerifiedPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifiedContent />
+    </Suspense>
   );
 }
